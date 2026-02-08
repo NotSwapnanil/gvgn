@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flutter Basics Assessment</title>
+    <style>
+        /* --- CSS STYLES --- */
+        :root {
+            --primary: #42A5F5; /* Flutter Blue */
+            --dark: #0D47A1;
+            --bg: #f8f9fa;
+            --white: #ffffff;
+            --text: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: var(--white);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        /* Header & Nav */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        h1 { margin: 0; color: var(--dark); font-size: 24px; }
+        
+        .admin-btn {
+            background: none;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 5px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .admin-btn:hover { background: var(--primary); color: white; }
+
+        /* Views Toggle */
+        .view-section { display: none; }
+        .view-section.active { display: block; }
+
+        /* Forms */
+        .input-group { margin-bottom: 25px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; color: #444; }
+        
+        input[type="text"], input[type="password"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box; /* Fix padding width issue */
+        }
+        
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(66, 165, 245, 0.2);
+        }
+
+        textarea { height: 80px; resize: vertical; font-family: inherit; }
+
+        /* Submit Button */
+        .btn-submit {
+            background-color: var(--primary);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.1s;
+        }
+        .btn-submit:active { transform: scale(0.98); }
+        .btn-submit:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        /* Admin Dashboard Styles */
+        .refresh-btn {
+            background-color: var(--dark);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+
+        .student-card {
+            border: 1px solid #eee;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        .student-header {
+            background: #e3f2fd;
+            padding: 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+        }
+        .student-header:hover { background: #bbdefb; }
+
+        .answers-container {
+            display: none;
+            padding: 20px;
+            background: #fff;
+        }
+        .answers-container.show { display: block; }
+
+        .answer-row {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px dashed #eee;
+        }
+        .q-label { font-weight: bold; color: var(--primary); font-size: 0.9em; }
+        .a-text { margin-top: 5px; color: #333; }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1 id="pageTitle">Flutter Basics Assessment</h1>
+        <button class="admin-btn" onclick="toggleAdminMode()">Admin Login</button>
+    </header>
+
+    <div id="studentView" class="view-section active">
+        <div class="input-group">
+            <label>Student Name</label>
+            <input type="text" id="studentName" placeholder="Enter your full name">
+        </div>
+        
+        <form id="quizForm">
+            </form>
+
+        <button class="btn-submit" id="submitBtn">Submit Test</button>
+    </div>
+
+    <div id="adminView" class="view-section">
+        <button class="refresh-btn" onclick="loadAdminData()">Refresh Data</button>
+        <div id="adminContent">
+            <p>Loading...</p>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    // --- 1. FIREBASE SETUP ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDocs, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+    // #################################################################
+    // PASTE YOUR FIREBASE CONFIG HERE
+    // #################################################################
+const firebaseConfig = {
+  apiKey: "AIzaSyDYC1--fOdKcXfaLUMnJmsaYOSK4zbq3H0",
+  authDomain: "scienceexhibition-76874.firebaseapp.com",
+  databaseURL: "https://scienceexhibition-76874-default-rtdb.firebaseio.com",
+  projectId: "scienceexhibition-76874",
+  storageBucket: "scienceexhibition-76874.firebasestorage.app",
+  messagingSenderId: "926759965138",
+  appId: "1:926759965138:web:2b93a88a7a51d5af57780b"
+};
+
+    // Initialize Firebase
+    let app, db;
+    try {
+        app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+    } catch(e) {
+        console.error("Firebase Error. Did you paste the config?", e);
+        alert("Error: Firebase not configured. Please edit the HTML file and add your config.");
+    }
+
+    // --- 2. DATA (THE 40 QUESTIONS) ---
+    const questions = [
+        "Difference between StatelessWidget and StatefulWidget?",
+        "Difference between 'child' and 'children' property?",
+        "Name 3 widgets that take a child and 3 that take children.",
+        "Purpose of the Scaffold widget?",
+        "Difference between Container and SizedBox?",
+        "Main Axis direction in a Column?",
+        "Cross Axis direction in a Row?",
+        "Explain MainAxisAlignment.spaceBetween behavior.",
+        "How to fix Row overflow error?",
+        "How to center a widget vertically and horizontally in a Column?",
+        "What happens if ListView is inside a Column without Expanded?",
+        "Effect of CrossAxisAlignment.stretch in a Column?",
+        "Change Row children order without changing code order?",
+        "Default MainAxisSize for a Column?",
+        "How Expanded works inside a Row?",
+        "Code for Text widget: Bold, Blue, Size 24.",
+        "Limit Text to 2 lines with ellipsis?",
+        "Class for global text themes in ThemeData?",
+        "How to import custom font?",
+        "Difference: Color(0xFF000000) vs Colors.black?",
+        "Purpose of TextEditingController?",
+        "How to hide text in TextField (password)?",
+        "How to add hint text in TextField?",
+        "Change TextField border color on focus?",
+        "Property to change keyboard to number pad?",
+        "Capture TextField value on every keystroke?",
+        "Show error message under TextField?",
+        "Two required properties for BottomNavigationBar?",
+        "Highlight selected item in BottomNavigationBar?",
+        "Explain onTap in BottomNavigationBar.",
+        "Item limit before BottomNavBar type changes?",
+        "Change BottomNavigationBar background color?",
+        "Visual effect that makes Card look lifted?",
+        "Make Card corners rounded (radius 20)?",
+        "Why wrap Card child in Padding?",
+        "Change Card shadow color?",
+        "Difference between margin and padding in Card?",
+        "Add Ripple effect (InkWell) to Card?",
+        "Code for generic Submit button using Container?",
+        "Why use 'const' before widgets?"
+    ];
+
+    // --- 3. DOM ELEMENTS ---
+    const studentView = document.getElementById('studentView');
+    const adminView = document.getElementById('adminView');
+    const quizForm = document.getElementById('quizForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const pageTitle = document.getElementById('pageTitle');
+    const adminContent = document.getElementById('adminContent');
+
+    // --- 4. INITIALIZE STUDENT VIEW ---
+    questions.forEach((q, index) => {
+        const div = document.createElement('div');
+        div.className = 'input-group';
+        div.innerHTML = `
+            <label>${index + 1}. ${q}</label>
+            <textarea name="q${index}" placeholder="Your answer..."></textarea>
+        `;
+        quizForm.appendChild(div);
+    });
+
+    // --- 5. SUBMIT LOGIC ---
+    submitBtn.addEventListener('click', async () => {
+        const name = document.getElementById('studentName').value.trim();
+        if (!name) { alert("Please enter your name!"); return; }
+
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Submitting...";
+
+        // Collect answers
+        const inputs = quizForm.querySelectorAll('textarea');
+        let answersMap = {};
+        inputs.forEach((input, index) => {
+            answersMap[`Q${index + 1}`] = input.value; // Store as Q1, Q2, etc.
+        });
+
+        try {
+            await addDoc(collection(db, "responses"), {
+                studentName: name,
+                answers: answersMap,
+                timestamp: serverTimestamp()
+            });
+            alert("Test Submitted Successfully!");
+            window.location.reload();
+        } catch (e) {
+            console.error(e);
+            alert("Error submitting. Check console.");
+            submitBtn.disabled = false;
+            submitBtn.innerText = "Submit Test";
+        }
+    });
+
+    // --- 6. ADMIN LOGIC ---
+    window.toggleAdminMode = function() {
+        if (adminView.style.display === 'block') {
+            // Switch back to student
+            adminView.classList.remove('active');
+            studentView.classList.add('active');
+            pageTitle.innerText = "Flutter Basics Assessment";
+        } else {
+            // Password check
+            const password = prompt("Enter Admin Password:", "");
+            if (password === "admin123") {
+                studentView.classList.remove('active');
+                adminView.classList.add('active');
+                pageTitle.innerText = "Admin Dashboard";
+                loadAdminData();
+            } else if (password !== null) {
+                alert("Wrong password!");
+            }
+        }
+    };
+
+    window.loadAdminData = async function() {
+        adminContent.innerHTML = "Loading data from Firebase...";
+        try {
+            const q = query(collection(db, "responses"), orderBy("timestamp", "desc"));
+            const snapshot = await getDocs(q);
+
+            if (snapshot.empty) {
+                adminContent.innerHTML = "<p>No submissions found.</p>";
+                return;
+            }
+
+            adminContent.innerHTML = ""; // Clear loader
+
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const id = doc.id;
+                
+                // Create Card
+                const card = document.createElement('div');
+                card.className = 'student-card';
+                
+                // Header
+                const date = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString() : 'Just now';
+                
+                // Body (Answers)
+                // Sort keys Q1, Q2... Q10 properly
+                const sortedKeys = Object.keys(data.answers).sort((a, b) => {
+                    return parseInt(a.substring(1)) - parseInt(b.substring(1));
+                });
+
+                let answersHtml = '';
+                sortedKeys.forEach(key => {
+                    const qNum = parseInt(key.substring(1)) - 1;
+                    const questionText = questions[qNum] || "Unknown Question";
+                    answersHtml += `
+                        <div class="answer-row">
+                            <div class="q-label">${key}: ${questionText}</div>
+                            <div class="a-text">${data.answers[key] || "<i style='color:#999'>No answer</i>"}</div>
+                        </div>
+                    `;
+                });
+
+                card.innerHTML = `
+                    <div class="student-header" onclick="document.getElementById('ans-${id}').classList.toggle('show')">
+                        <div>
+                            <span style="font-size:1.1em">${data.studentName}</span>
+                            <div style="font-size:0.8em; color:#666; font-weight:normal">${date}</div>
+                        </div>
+                        <span>▼</span>
+                    </div>
+                    <div id="ans-${id}" class="answers-container">
+                        ${answersHtml}
+                    </div>
+                `;
+                adminContent.appendChild(card);
+            });
+
+        } catch (e) {
+            console.error(e);
+            adminContent.innerHTML = "<p style='color:red'>Error loading data. Check console.</p>";
+        }
+    };
+</script>
+
+</body>
+</html>
